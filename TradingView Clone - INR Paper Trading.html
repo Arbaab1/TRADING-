@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradingView Pro - INR Paper Trading Terminal</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        tvbg: '#131722',
+                        tvcard: '#1e222d',
+                        tvborder: '#2a2e39',
+                        tvgreen: '#26a69a',
+                        tvred: '#ef5350',
+                        tvblue: '#2962ff',
+                        tvhover: '#2a2e39'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lightweight Charts (TradingView Lightweight Library) -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #131722; color: #d1d4dc; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #131722; }
+        ::-webkit-scrollbar-thumb { background: #2a2e39; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #363c4e; }
+        .tv-button-active { background-color: #2962ff !important; color: white !important; }
+        .tv-tab-active { border-bottom: 2px solid #2962ff; color: #2962ff; }
+    </style>
+</head>
+<body class="h-screen overflow-hidden flex flex-col select-none">
+
+    <!-- Top Navigation Header -->
+    <header class="h-12 bg-tvcard border-b border-tvborder flex items-center justify-between px-3 z-30 shrink-0">
+        <!-- Left Section: Symbol, Timeframe & Indicators -->
+        <div class="flex items-center space-x-3 overflow-x-auto">
+            <!-- Logo -->
+            <div class="flex items-center space-x-2 pr-2 border-r border-tvborder shrink-0">
+                <i class="fa-solid fa-chart-candlestick text-tvblue text-xl"></i>
+                <span class="font-bold text-sm tracking-wide text-white hidden sm:inline">TradingView <span class="text-[10px] bg-tvblue/20 text-tvblue px-1.5 py-0.5 rounded border border-tvblue/30">INR PAPER</span></span>
+            </div>
+
+            <!-- Symbol Switcher -->
+            <div class="relative shrink-0">
+                <select id="assetSelect" class="bg-tvbg text-xs font-semibold text-white px-2.5 py-1 rounded border border-tvborder focus:outline-none focus:border-tvblue cursor-pointer">
+                    <option value="BTCUSD">BTC / INR (Bitcoin)</option>
+                    <option value="ETHUSD">ETH / INR (Ethereum)</option>
+                    <option value="SOLUSD">SOL / INR (Solana)</option>
+                    <option value="XAUUSD">XAU / INR (Gold Spot)</option>
+                    <option value="EURUSD">EUR / INR (Euro Forex)</option>
+                </select>
+            </div>
+
+            <!-- Timeframe Controls -->
+            <div class="flex items-center space-x-1 text-xs border-l border-r border-tvborder px-2 shrink-0">
+                <button class="tf-btn px-2 py-0.5 rounded hover:bg-tvborder text-gray-300 font-medium tv-button-active" data-tf="1m">1m</button>
+                <button class="tf-btn px-2 py-0.5 rounded hover:bg-tvborder text-gray-400 font-medium" data-tf="5m">5m</button>
+                <button class="tf-btn px-2 py-0.5 rounded hover:bg-tvborder text-gray-400 font-medium" data-tf="15m">15m</button>
+            </div>
+
+            <!-- Technical Indicators Dropdown -->
+            <div class="flex items-center space-x-1 shrink-0">
+                <button id="indicatorSma20" class="ind-toggle text-[11px] px-2 py-0.5 rounded border border-tvborder text-gray-400 hover:text-white transition">SMA 20</button>
+                <button id="indicatorSma50" class="ind-toggle text-[11px] px-2 py-0.5 rounded border border-tvborder text-gray-400 hover:text-white transition">SMA 50</button>
+                <button id="indicatorRsi" class="ind-toggle text-[11px] px-2 py-0.5 rounded border border-tvborder text-gray-400 hover:text-white transition">RSI 14</button>
+                <button id="indicatorBb" class="ind-toggle text-[11px] px-2 py-0.5 rounded border border-tvborder text-gray-400 hover:text-white transition">Bollinger Bands</button>
+            </div>
+        </div>
+
+        <!-- Right Section: Price & Auth Profile -->
+        <div class="flex items-center space-x-3 shrink-0">
+            <!-- Live Ticker Readout -->
+            <div class="hidden md:flex items-center space-x-4 text-xs pr-3 border-r border-tvborder">
+                <div>
+                    <span class="text-gray-400 text-[10px] block">LIVE PRICE</span>
+                    <span id="headerLastPrice" class="font-bold text-tvgreen">₹0.00</span>
+                </div>
+                <div>
+                    <span class="text-gray-400 text-[10px] block">24H CHANGE</span>
+                    <span id="headerChange" class="font-bold text-tvgreen">+0.00%</span>
+                </div>
+            </div>
+
+            <button id="resetCapitalBtn" class="text-xs bg-tvbg hover:bg-tvborder text-gray-300 px-2.5 py-1 rounded border border-tvborder flex items-center space-x-1.5 transition">
+                <i class="fa-solid fa-arrows-rotate text-gray-400"></i>
+                <span class="hidden sm:inline">Reset ₹1L</span>
+            </button>
+
+            <!-- Auth Container -->
+            <div id="authContainer">
+                <button id="googleAuthBtn" class="bg-tvblue hover:bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded flex items-center space-x-1.5 transition shadow">
+                    <i class="fa-brands fa-google"></i>
+                    <span>Login</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace (Toolbar + Chart + Terminal) -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Far Left Drawing Tools Bar (TradingView Style) -->
+        <aside class="w-10 bg-tvcard border-r border-tvborder flex flex-col items-center py-3 space-y-4 text-gray-400 shrink-0">
+            <button class="hover:text-white transition text-xs" title="Crosshair"><i class="fa-solid fa-crosshairs text-tvblue"></i></button>
+            <button class="hover:text-white transition text-xs" title="Trend Line"><i class="fa-solid fa-slash"></i></button>
+            <button class="hover:text-white transition text-xs" title="Fibonacci Retracement"><i class="fa-solid fa-bars-staggered"></i></button>
+            <button class="hover:text-white transition text-xs" title="Text / Annotation"><i class="fa-solid fa-font"></i></button>
+            <button class="hover:text-white transition text-xs" title="Brush / Sketch"><i class="fa-solid fa-paint-brush"></i></button>
+            <div class="w-6 border-b border-tvborder"></div>
+            <button id="clearChartBtn" class="hover:text-tvred transition text-xs" title="Reset View"><i class="fa-solid fa-trash-can"></i></button>
+        </aside>
+
+        <!-- Center Interactive Lightweight Chart Container -->
+        <main class="flex-1 flex flex-col bg-tvbg relative overflow-hidden">
+            <!-- Main Chart Canvas -->
+            <div id="chartCanvas" class="w-full flex-1 relative"></div>
+
+            <!-- RSI Oscillating Indicator Panel (Dynamic Toggle) -->
+            <div id="rsiPanel" class="h-28 border-t border-tvborder bg-tvbg relative hidden shrink-0">
+                <div class="absolute top-1 left-2 text-[10px] text-gray-400 font-semibold z-10">RSI (14): <span id="rsiValue" class="text-tvblue">0.00</span></div>
+                <div id="rsiCanvas" class="w-full h-full"></div>
+            </div>
+
+            <!-- Floating Quick Stats Bar -->
+            <div class="h-8 bg-tvcard border-t border-tvborder flex items-center justify-between px-4 text-xs shrink-0">
+                <div class="flex items-center space-x-6 text-[11px]">
+                    <div><span class="text-gray-400">Balance:</span> <span id="metricBalance" class="font-bold text-white">₹1,00,000.00</span></div>
+                    <div><span class="text-gray-400">Equity:</span> <span id="metricEquity" class="font-bold text-white">₹1,00,000.00</span></div>
+                    <div><span class="text-gray-400">Used Margin:</span> <span id="metricMargin" class="font-bold text-gray-300">₹0.00</span></div>
+                    <div><span class="text-gray-400">Free Margin:</span> <span id="metricFreeMargin" class="font-bold text-gray-300">₹1,00,000.00</span></div>
+                </div>
+                <div class="text-[11px]">
+                    <span class="text-gray-400">Floating P&L:</span> 
+                    <span id="metricUnrealizedPnL" class="font-bold text-gray-300">₹0.00</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Order Entry Panel -->
+        <aside class="w-72 md:w-80 bg-tvcard border-l border-tvborder flex flex-col shrink-0">
+            <!-- Order Header -->
+            <div class="p-3 border-b border-tvborder flex justify-between items-center">
+                <span class="font-semibold text-xs text-white uppercase tracking-wider">Order Execution</span>
+                <span id="selectedSymbolTag" class="text-[10px] font-bold px-2 py-0.5 rounded bg-tvbg border border-tvborder text-tvblue">BTC/INR</span>
+            </div>
+
+            <!-- Execution Form -->
+            <div class="p-4 flex-1 overflow-y-auto space-y-4">
+                <!-- Buy / Sell Toggle Buttons -->
+                <div class="grid grid-cols-2 gap-2 p-1 bg-tvbg rounded border border-tvborder">
+                    <button id="tabBuyBtn" class="py-2 text-xs font-bold rounded bg-tvgreen text-white transition shadow">BUY / LONG</button>
+                    <button id="tabSellBtn" class="py-2 text-xs font-bold rounded text-gray-400 hover:text-white transition">SELL / SHORT</button>
+                </div>
+
+                <!-- Order Type (Market vs Limit) -->
+                <div class="flex space-x-4 text-xs border-b border-tvborder pb-3">
+                    <label class="flex items-center space-x-1.5 cursor-pointer">
+                        <input type="radio" name="orderType" value="market" checked class="accent-tvblue">
+                        <span>Market</span>
+                    </label>
+                    <label class="flex items-center space-x-1.5 cursor-pointer">
+                        <input type="radio" name="orderType" value="limit" class="accent-tvblue">
+                        <span>Limit</span>
+                    </label>
+                </div>
+
+                <!-- Limit Price Input (Hidden unless Limit is chosen) -->
+                <div id="limitPriceGroup" class="hidden space-y-1">
+                    <label class="text-[11px] text-gray-400">Target Entry Price (₹)</label>
+                    <input type="number" id="limitPriceInput" class="w-full bg-tvbg border border-tvborder rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-tvblue" placeholder="0.00">
+                </div>
+
+                <!-- Lot / Quantity Input -->
+                <div class="space-y-1">
+                    <div class="flex justify-between text-[11px]">
+                        <span class="text-gray-400">Position Units (Lots)</span>
+                        <span class="text-gray-400" id="lotSizeInfo">Standard Unit</span>
+                    </div>
+                    <input type="number" id="orderQty" value="0.1" step="0.01" min="0.01" class="w-full bg-tvbg border border-tvborder rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-tvblue">
+                </div>
+
+                <!-- Leverage Slider -->
+                <div class="space-y-1 pt-1">
+                    <div class="flex justify-between text-[11px]">
+                        <span class="text-gray-400">Leverage</span>
+                        <span id="leverageVal" class="text-tvblue font-bold">1:10</span>
+                    </div>
+                    <input type="range" id="leverageRange" min="1" max="500" value="10" class="w-full accent-tvblue cursor-pointer">
+                </div>
+
+                <!-- Stop Loss & Take Profit Controls -->
+                <div class="pt-2 border-t border-tvborder space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[11px] text-gray-400 flex items-center space-x-1.5 cursor-pointer">
+                            <input type="checkbox" id="enableSL" class="accent-tvblue">
+                            <span>Stop Loss (SL)</span>
+                        </label>
+                        <input type="number" id="slPrice" placeholder="Price (₹)" disabled class="w-28 bg-tvbg border border-tvborder rounded px-2 py-1 text-xs text-white focus:outline-none disabled:opacity-30">
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <label class="text-[11px] text-gray-400 flex items-center space-x-1.5 cursor-pointer">
+                            <input type="checkbox" id="enableTP" class="accent-tvblue">
+                            <span>Take Profit (TP)</span>
+                        </label>
+                        <input type="number" id="tpPrice" placeholder="Price (₹)" disabled class="w-28 bg-tvbg border border-tvborder rounded px-2 py-1 text-xs text-white focus:outline-none disabled:opacity-30">
+                    </div>
+                </div>
+
+                <!-- Order Calculations Card -->
+                <div class="bg-tvbg p-3 rounded border border-tvborder space-y-1.5 text-[11px]">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Required Margin:</span>
+                        <span id="calcMargin" class="font-semibold text-white">₹0.00</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Est. Trade Value:</span>
+                        <span id="calcTradeVal" class="font-semibold text-white">₹0.00</span>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button id="executeOrderBtn" class="w-full py-2.5 bg-tvgreen hover:opacity-90 font-bold text-white rounded shadow-lg transition text-xs flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-bolt"></i>
+                    <span id="executeBtnText">EXECUTE BUY ORDER</span>
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Bottom Positions and Trade History Drawer -->
+    <div class="h-48 bg-tvcard border-t border-tvborder flex flex-col shrink-0">
+        <!-- Drawer Tabs -->
+        <div class="flex border-b border-tvborder px-4 text-xs font-semibold">
+            <button id="tabPositions" class="py-2 px-4 text-tvblue border-b-2 border-tvblue focus:outline-none">Open Positions (<span id="posCount">0</span>)</button>
+            <button id="tabHistory" class="py-2 px-4 text-gray-400 hover:text-white border-b-2 border-transparent focus:outline-none">Trade History</button>
+        </div>
+
+        <!-- Positions Table -->
+        <div id="positionsPanel" class="flex-1 overflow-y-auto p-2">
+            <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                    <tr class="text-gray-400 border-b border-tvborder text-[11px]">
+                        <th class="p-2">Symbol</th>
+                        <th class="p-2">Side</th>
+                        <th class="p-2">Qty</th>
+                        <th class="p-2">Entry Price (₹)</th>
+                        <th class="p-2">Current Price (₹)</th>
+                        <th class="p-2">Margin (₹)</th>
+                        <th class="p-2">Unrealized P&L (₹)</th>
+                        <th class="p-2 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="positionsTableBody">
+                    <!-- Dynamic Rows -->
+                </tbody>
+            </table>
+            <div id="noPositionsMsg" class="text-center text-gray-500 py-6 text-xs">No active open positions. Execute a order from the right panel.</div>
+        </div>
+
+        <!-- History Table -->
+        <div id="historyPanel" class="flex-1 overflow-y-auto p-2 hidden">
+            <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                    <tr class="text-gray-400 border-b border-tvborder text-[11px]">
+                        <th class="p-2">Time</th>
+                        <th class="p-2">Symbol</th>
+                        <th class="p-2">Side</th>
+                        <th class="p-2">Qty</th>
+                        <th class="p-2">Entry (₹)</th>
+                        <th class="p-2">Exit (₹)</th>
+                        <th class="p-2">Realized P&L (₹)</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                    <!-- Dynamic Rows -->
+                </tbody>
+            </table>
+            <div id="noHistoryMsg" class="text-center text-gray-500 py-6 text-xs">No completed trades in ledger.</div>
+        </div>
+    </div>
+
+    <!-- Notification Toast Modal -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-tvcard border border-tvborder text-white text-xs px-4 py-2.5 rounded-lg shadow-2xl hidden z-50 flex items-center space-x-2">
+        <i id="toastIcon" class="fa-solid fa-circle-info text-tvblue"></i>
+        <span id="toastMsg">Notification Message</span>
+    </div>
+
+    <!-- Firebase Modular Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Configurations
+        const USD_TO_INR = 83.50; // Currency Constant
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tradingview-inr-app';
+        let app, db, auth;
+        let currentUser = null;
+
+        try {
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+                apiKey: "demo-api-key", authDomain: "demo.firebaseapp.com", projectId: "demo-app"
+            };
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch(e) {
+            console.warn("Firebase running in local state mode.", e);
+        }
+
+        // Global State Variable
+        let currentSymbol = "BTCUSD";
+        let currentOrderSide = "BUY";
+        let livePrices = {
+            "BTCUSD": { usd: 65000, inr: 65000 * USD_TO_INR, change: 1.45 },
+            "ETHUSD": { usd: 3450, inr: 3450 * USD_TO_INR, change: -0.25 },
+            "SOLUSD": { usd: 145, inr: 145 * USD_TO_INR, change: 3.10 },
+            "XAUUSD": { usd: 2380, inr: 2380 * USD_TO_INR, change: 0.65 },
+            "EURUSD": { usd: 1.085, inr: 1.085 * USD_TO_INR, change: 0.08 }
+        };
+
+        let userData = {
+            balance: 100000.00,
+            positions: [],
+            history: []
+        };
+
+        let indicatorsState = {
+            sma20: false,
+            sma50: false,
+            rsi: false,
+            bb: false
+        };
+
+        // DOM Element Cache
+        const assetSelect = document.getElementById('assetSelect');
+        const headerLastPrice = document.getElementById('headerLastPrice');
+        const headerChange = document.getElementById('headerChange');
+        const tabBuyBtn = document.getElementById('tabBuyBtn');
+        const tabSellBtn = document.getElementById('tabSellBtn');
+        const executeOrderBtn = document.getElementById('executeOrderBtn');
+        const executeBtnText = document.getElementById('executeBtnText');
+        const orderQtyInput = document.getElementById('orderQty');
+        const leverageRange = document.getElementById('leverageRange');
+        const leverageVal = document.getElementById('leverageVal');
+        const calcMargin = document.getElementById('calcMargin');
+        const calcTradeVal = document.getElementById('calcTradeVal');
+        const metricBalance = document.getElementById('metricBalance');
+        const metricEquity = document.getElementById('metricEquity');
+        const metricMargin = document.getElementById('metricMargin');
+        const metricFreeMargin = document.getElementById('metricFreeMargin');
+        const metricUnrealizedPnL = document.getElementById('metricUnrealizedPnL');
+        const positionsTableBody = document.getElementById('positionsTableBody');
+        const historyTableBody = document.getElementById('historyTableBody');
+        const noPositionsMsg = document.getElementById('noPositionsMsg');
+        const noHistoryMsg = document.getElementById('noHistoryMsg');
+
+        // Create Main Chart
+        const chartCanvas = document.getElementById('chartCanvas');
+        const chart = LightweightCharts.createChart(chartCanvas, {
+            layout: { backgroundColor: '#131722', textColor: '#d1d4dc' },
+            grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+            priceScale: { borderColor: '#2a2e39' },
+            timeScale: { borderColor: '#2a2e39', timeVisible: true }
+        });
+
+        const candlestickSeries = chart.addCandlestickSeries({
+            upColor: '#26a69a', downColor: '#ef5350',
+            borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350'
+        });
+
+        // Indicator Line Series
+        const sma20Series = chart.addLineSeries({ color: '#2962ff', lineWidth: 1.5, visible: false });
+        const sma50Series = chart.addLineSeries({ color: '#ff9800', lineWidth: 1.5, visible: false });
+        const bbUpperSeries = chart.addLineSeries({ color: 'rgba(38, 166, 154, 0.5)', lineWidth: 1, visible: false });
+        const bbLowerSeries = chart.addLineSeries({ color: 'rgba(239, 83, 80, 0.5)', lineWidth: 1, visible: false });
+
+        // RSI Auxiliary Chart
+        const rsiCanvas = document.getElementById('rsiCanvas');
+        const rsiChart = LightweightCharts.createChart(rsiCanvas, {
+            layout: { backgroundColor: '#131722', textColor: '#d1d4dc' },
+            grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
+            timeScale: { visible: false }
+        });
+        const rsiSeries = rsiChart.addLineSeries({ color: '#9c27b0', lineWidth: 1.5 });
+
+        let currentCandles = [];
+
+        // Generate Synthetic Price Data
+        function generateHistoricalCandles(baseUSD) {
+            const data = [];
+            let time = new Date(Date.now() - 150 * 60 * 1000);
+            let price = baseUSD * USD_TO_INR;
+
+            for (let i = 0; i < 150; i++) {
+                const vol = price * 0.002;
+                const open = price;
+                const high = open + Math.random() * vol;
+                const low = open - Math.random() * vol;
+                const close = low + Math.random() * (high - low);
+                price = close;
+
+                data.push({
+                    time: Math.floor(time.getTime() / 1000),
+                    open: parseFloat(open.toFixed(2)),
+                    high: parseFloat(high.toFixed(2)),
+                    low: parseFloat(low.toFixed(2)),
+                    close: parseFloat(close.toFixed(2))
+                });
+                time = new Date(time.getTime() + 60 * 1000);
+            }
+            return data;
+        }
+
+        // Calculate Technical Indicators
+        function calculateIndicators(data) {
+            const closes = data.map(d => d.close);
+
+            // SMA 20 & 50
+            const sma20Data = [];
+            const sma50Data = [];
+            const bbUpperData = [];
+            const bbLowerData = [];
+
+            for (let i = 0; i < data.length; i++) {
+                if (i >= 19) {
+                    const slice20 = closes.slice(i - 19, i + 1);
+                    const avg20 = slice20.reduce((a, b) => a + b, 0) / 20;
+                    sma20Data.push({ time: data[i].time, value: avg20 });
+
+                    // Bollinger Bands
+                    const stdDev = Math.sqrt(slice20.reduce((sq, n) => sq + Math.pow(n - avg20, 2), 0) / 20);
+                    bbUpperData.push({ time: data[i].time, value: avg20 + (stdDev * 2) });
+                    bbLowerData.push({ time: data[i].time, value: avg20 - (stdDev * 2) });
+                }
+                if (i >= 49) {
+                    const avg50 = closes.slice(i - 49, i + 1).reduce((a, b) => a + b, 0) / 50;
+                    sma50Data.push({ time: data[i].time, value: avg50 });
+                }
+            }
+
+            sma20Series.setData(sma20Data);
+            sma50Series.setData(sma50Data);
+            bbUpperSeries.setData(bbUpperData);
+            bbLowerSeries.setData(bbLowerData);
+
+            // RSI 14 Calculation
+            const rsiData = [];
+            for (let i = 14; i < data.length; i++) {
+                let gains = 0, losses = 0;
+                for (let j = i - 13; j <= i; j++) {
+                    const diff = closes[j] - closes[j - 1];
+                    if (diff >= 0) gains += diff;
+                    else losses -= diff;
+                }
+                const avgGain = gains / 14;
+                const avgLoss = losses / 14;
+                const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+                const rsi = 100 - (100 / (1 + rs));
+                rsiData.push({ time: data[i].time, value: rsi });
+            }
+            rsiSeries.setData(rsiData);
+            if (rsiData.length > 0) {
+                document.getElementById('rsiValue').textContent = rsiData[rsiData.length - 1].value.toFixed(2);
+            }
+        }
+
+        // Refresh Active Chart
+        function initChart() {
+            currentCandles = generateHistoricalCandles(livePrices[currentSymbol].usd);
+            candlestickSeries.setData(currentCandles);
+            calculateIndicators(currentCandles);
+        }
+
+        // Live Real-Time Price Simulation Engine
+        setInterval(() => {
+            Object.keys(livePrices).forEach(sym => {
+                const deltaPct = (Math.random() - 0.495) * 0.0025;
+                livePrices[sym].usd *= (1 + deltaPct);
+                livePrices[sym].inr = livePrices[sym].usd * USD_TO_INR;
+                livePrices[sym].change += deltaPct * 100;
+            });
+
+            const activePrice = livePrices[currentSymbol].inr;
+            const lastCandle = currentCandles[currentCandles.length - 1];
+            const updatedCandle = {
+                time: lastCandle.time,
+                open: lastCandle.open,
+                high: Math.max(lastCandle.high, activePrice),
+                low: Math.min(lastCandle.low, activePrice),
+                close: activePrice
+            };
+
+            candlestickSeries.update(updatedCandle);
+            updateCalculations();
+            updatePortfolioMetrics();
+            renderPositions();
+            checkStopLossTakeProfit();
+        }, 1000);
+
+        // Auto Stop Loss / Take Profit Monitor
+        function checkStopLossTakeProfit() {
+            userData.positions.forEach(pos => {
+                const curPrice = livePrices[pos.symbol].inr;
+                let triggerClose = false;
+
+                if (pos.side === 'BUY') {
+                    if (pos.sl && curPrice <= pos.sl) triggerClose = true;
+                    if (pos.tp && curPrice >= pos.tp) triggerClose = true;
+                } else {
+                    if (pos.sl && curPrice >= pos.sl) triggerClose = true;
+                    if (pos.tp && curPrice <= pos.tp) triggerClose = true;
+                }
+
+                if (triggerClose) closePosition(pos.id);
+            });
+        }
+
+        // Order Execution
+        executeOrderBtn.addEventListener('click', () => {
+            const qty = parseFloat(orderQtyInput.value);
+            const lev = parseInt(leverageRange.value);
+            const currPrice = livePrices[currentSymbol].inr;
+            const reqMargin = (qty * currPrice) / lev;
+
+            if (isNaN(qty) || qty <= 0) {
+                showToast("Please enter a valid position lot size.", "error");
+                return;
+            }
+
+            const freeMargin = userData.balance - calculateTotalMargin();
+            if (reqMargin > freeMargin) {
+                showToast("Insufficient Free Margin in INR balance!", "error");
+                return;
+            }
+
+            const slValue = document.getElementById('enableSL').checked ? parseFloat(document.getElementById('slPrice').value) : null;
+            const tpValue = document.getElementById('enableTP').checked ? parseFloat(document.getElementById('tpPrice').value) : null;
+
+            const newPos = {
+                id: 'POS-' + Date.now(),
+                symbol: currentSymbol,
+                side: currentOrderSide,
+                qty: qty,
+                entryPrice: currPrice,
+                leverage: lev,
+                margin: reqMargin,
+                sl: slValue,
+                tp: tpValue,
+                time: new Date().toLocaleTimeString()
+            };
+
+            userData.positions.push(newPos);
+            saveUserData();
+            showToast(`Executed ${currentOrderSide} for ${qty} ${currentSymbol} at ₹${currPrice.toFixed(2)}`);
+        });
+
+        // Close Active Trade
+        window.closePosition = function(posId) {
+            const idx = userData.positions.findIndex(p => p.id === posId);
+            if (idx === -1) return;
+
+            const pos = userData.positions[idx];
+            const curPrice = livePrices[pos.symbol].inr;
+            const pnl = pos.side === 'BUY' 
+                ? (curPrice - pos.entryPrice) * pos.qty
+                : (pos.entryPrice - curPrice) * pos.qty;
+
+            userData.balance += pnl;
+
+            userData.history.unshift({
+                id: pos.id,
+                time: new Date().toLocaleTimeString(),
+                symbol: pos.symbol,
+                side: pos.side,
+                qty: pos.qty,
+                entry: pos.entryPrice,
+                exit: curPrice,
+                pnl: pnl
+            });
+
+            userData.positions.splice(idx, 1);
+            saveUserData();
+            showToast(`Position closed. Realized P&L: ₹${pnl.toFixed(2)}`, pnl >= 0 ? "success" : "error");
+        };
+
+        // Calculation Helpers
+        function calculateTotalMargin() {
+            return userData.positions.reduce((sum, p) => sum + p.margin, 0);
+        }
+
+        function updateCalculations() {
+            const cur = livePrices[currentSymbol];
+            headerLastPrice.textContent = `₹${cur.inr.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+            headerChange.textContent = `${cur.change >= 0 ? '+' : ''}${cur.change.toFixed(2)}%`;
+            headerChange.className = `font-bold ${cur.change >= 0 ? 'text-tvgreen' : 'text-tvred'}`;
+
+            const qty = parseFloat(orderQtyInput.value) || 0;
+            const lev = parseInt(leverageRange.value);
+            const tradeVal = qty * cur.inr;
+            const reqMargin = tradeVal / lev;
+
+            calcTradeVal.textContent = `₹${tradeVal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+            calcMargin.textContent = `₹${reqMargin.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+        }
+
+        function updatePortfolioMetrics() {
+            let unrealizedPnL = 0;
+            userData.positions.forEach(p => {
+                const curPrice = livePrices[p.symbol].inr;
+                const pnl = p.side === 'BUY' 
+                    ? (curPrice - p.entryPrice) * p.qty 
+                    : (p.entryPrice - curPrice) * p.qty;
+                unrealizedPnL += pnl;
+            });
+
+            const marginUsed = calculateTotalMargin();
+            const equity = userData.balance + unrealizedPnL;
+            const freeMargin = equity - marginUsed;
+
+            metricBalance.textContent = `₹${userData.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+            metricEquity.textContent = `₹${equity.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+            metricMargin.textContent = `₹${marginUsed.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+            metricFreeMargin.textContent = `₹${freeMargin.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+            metricUnrealizedPnL.textContent = `₹${unrealizedPnL.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+            metricUnrealizedPnL.className = `font-bold ${unrealizedPnL >= 0 ? 'text-tvgreen' : 'text-tvred'}`;
+        }
+
+        function renderPositions() {
+            if (userData.positions.length === 0) {
+                noPositionsMsg.classList.remove('hidden');
+                positionsTableBody.innerHTML = '';
+                document.getElementById('posCount').textContent = '0';
+                return;
+            }
+
+            noPositionsMsg.classList.add('hidden');
+            document.getElementById('posCount').textContent = userData.positions.length;
+
+            positionsTableBody.innerHTML = userData.positions.map(p => {
+                const curPrice = livePrices[p.symbol].inr;
+                const pnl = p.side === 'BUY' 
+                    ? (curPrice - p.entryPrice) * p.qty 
+                    : (p.entryPrice - curPrice) * p.qty;
+
+                return `
+                    <tr class="border-b border-tvborder hover:bg-tvbg/50">
+                        <td class="p-2 font-semibold text-white">${p.symbol}</td>
+                        <td class="p-2 font-bold ${p.side === 'BUY' ? 'text-tvgreen' : 'text-tvred'}">${p.side}</td>
+                        <td class="p-2">${p.qty}</td>
+                        <td class="p-2">₹${p.entryPrice.toFixed(2)}</td>
+                        <td class="p-2">₹${curPrice.toFixed(2)}</td>
+                        <td class="p-2">₹${p.margin.toFixed(2)}</td>
+                        <td class="p-2 font-bold ${pnl >= 0 ? 'text-tvgreen' : 'text-tvred'}">₹${pnl.toFixed(2)}</td>
+                        <td class="p-2 text-right">
+                            <button onclick="closePosition('${p.id}')" class="px-2 py-0.5 bg-tvred/20 text-tvred hover:bg-tvred hover:text-white rounded border border-tvred/30 transition text-[11px]">Close</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderHistory() {
+            if (userData.history.length === 0) {
+                noHistoryMsg.classList.remove('hidden');
+                historyTableBody.innerHTML = '';
+                return;
+            }
+
+            noHistoryMsg.classList.add('hidden');
+            historyTableBody.innerHTML = userData.history.map(h => `
+                <tr class="border-b border-tvborder">
+                    <td class="p-2 text-gray-400">${h.time}</td>
+                    <td class="p-2 font-semibold text-white">${h.symbol}</td>
+                    <td class="p-2 font-bold ${h.side === 'BUY' ? 'text-tvgreen' : 'text-tvred'}">${h.side}</td>
+                    <td class="p-2">${h.qty}</td>
+                    <td class="p-2">₹${h.entry.toFixed(2)}</td>
+                    <td class="p-2">₹${h.exit.toFixed(2)}</td>
+                    <td class="p-2 font-bold ${h.pnl >= 0 ? 'text-tvgreen' : 'text-tvred'}">₹${h.pnl.toFixed(2)}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Sync Data to Firestore Engine
+        async function saveUserData() {
+            renderPositions();
+            renderHistory();
+            updatePortfolioMetrics();
+
+            if (auth && auth.currentUser) {
+                const docRef = doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'profile', 'data');
+                try {
+                    await setDoc(docRef, userData);
+                } catch(e) { console.error("Firestore Save Error", e); }
+            }
+        }
+
+        // Firebase Auth Listeners
+        function initAuth() {
+            if (!auth) return;
+            const container = document.getElementById('authContainer');
+
+            onAuthStateChanged(auth, user => {
+                currentUser = user;
+                if (user && !user.isAnonymous) {
+                    container.innerHTML = `
+                        <div class="flex items-center space-x-2 bg-tvbg border border-tvborder px-2 py-1 rounded">
+                            <img src="${user.photoURL || 'https://via.placeholder.com/20'}" class="w-4 h-4 rounded-full">
+                            <span class="text-xs font-semibold text-gray-300">${user.displayName || 'Trader'}</span>
+                            <button id="logoutBtn" class="text-xs text-gray-400 hover:text-white ml-1"><i class="fa-solid fa-right-from-bracket"></i></button>
+                        </div>
+                    `;
+                    document.getElementById('logoutBtn')?.addEventListener('click', () => signOut(auth));
+
+                    const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data');
+                    onSnapshot(docRef, snapshot => {
+                        if (snapshot.exists()) {
+                            userData = snapshot.data();
+                            renderPositions(); renderHistory(); updatePortfolioMetrics();
+                        } else saveUserData();
+                    });
+                    showToast(`Signed in as ${user.displayName || 'User'}`);
+                } else {
+                    container.innerHTML = `
+                        <button id="googleAuthBtn" class="bg-tvblue hover:bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded flex items-center space-x-1.5 transition shadow">
+                            <i class="fa-brands fa-google"></i> <span>Login</span>
+                        </button>
+                    `;
+                    document.getElementById('googleAuthBtn')?.addEventListener('click', () => {
+                        signInWithPopup(auth, new GoogleAuthProvider()).catch(e => showToast("Auth Failed", "error"));
+                    });
+                }
+            });
+        }
+
+        // Indicator Toggle Handlers
+        document.getElementById('indicatorSma20').addEventListener('click', (e) => {
+            indicatorsState.sma20 = !indicatorsState.sma20;
+            sma20Series.applyOptions({ visible: indicatorsState.sma20 });
+            e.target.classList.toggle('tv-button-active', indicatorsState.sma20);
+        });
+
+        document.getElementById('indicatorSma50').addEventListener('click', (e) => {
+            indicatorsState.sma50 = !indicatorsState.sma50;
+            sma50Series.applyOptions({ visible: indicatorsState.sma50 });
+            e.target.classList.toggle('tv-button-active', indicatorsState.sma50);
+        });
+
+        document.getElementById('indicatorBb').addEventListener('click', (e) => {
+            indicatorsState.bb = !indicatorsState.bb;
+            bbUpperSeries.applyOptions({ visible: indicatorsState.bb });
+            bbLowerSeries.applyOptions({ visible: indicatorsState.bb });
+            e.target.classList.toggle('tv-button-active', indicatorsState.bb);
+        });
+
+        document.getElementById('indicatorRsi').addEventListener('click', (e) => {
+            indicatorsState.rsi = !indicatorsState.rsi;
+            document.getElementById('rsiPanel').classList.toggle('hidden', !indicatorsState.rsi);
+            e.target.classList.toggle('tv-button-active', indicatorsState.rsi);
+        });
+
+        // UI Controls Events
+        tabBuyBtn.addEventListener('click', () => {
+            currentOrderSide = "BUY";
+            tabBuyBtn.className = "py-2 text-xs font-bold rounded bg-tvgreen text-white transition shadow";
+            tabSellBtn.className = "py-2 text-xs font-bold rounded text-gray-400 hover:text-white transition";
+            executeOrderBtn.className = "w-full py-2.5 bg-tvgreen hover:opacity-90 font-bold text-white rounded shadow-lg transition text-xs flex items-center justify-center space-x-2";
+            executeBtnText.textContent = "EXECUTE BUY ORDER";
+        });
+
+        tabSellBtn.addEventListener('click', () => {
+            currentOrderSide = "SELL";
+            tabSellBtn.className = "py-2 text-xs font-bold rounded bg-tvred text-white transition shadow";
+            tabBuyBtn.className = "py-2 text-xs font-bold rounded text-gray-400 hover:text-white transition";
+            executeOrderBtn.className = "w-full py-2.5 bg-tvred hover:opacity-90 font-bold text-white rounded shadow-lg transition text-xs flex items-center justify-center space-x-2";
+            executeBtnText.textContent = "EXECUTE SELL ORDER";
+        });
+
+        leverageRange.addEventListener('input', (e) => {
+            leverageVal.textContent = `1:${e.target.value}`;
+            updateCalculations();
+        });
+
+        orderQtyInput.addEventListener('input', updateCalculations);
+
+        assetSelect.addEventListener('change', (e) => {
+            currentSymbol = e.target.value;
+            document.getElementById('selectedSymbolTag').textContent = currentSymbol.replace('USD', '/INR');
+            initChart();
+            updateCalculations();
+        });
+
+        document.getElementById('enableSL').addEventListener('change', (e) => {
+            document.getElementById('slPrice').disabled = !e.target.checked;
+        });
+
+        document.getElementById('enableTP').addEventListener('change', (e) => {
+            document.getElementById('tpPrice').disabled = !e.target.checked;
+        });
+
+        document.getElementById('resetCapitalBtn').addEventListener('click', () => {
+            userData.balance = 100000.00;
+            userData.positions = [];
+            saveUserData();
+            showToast("Account reset to ₹1,00,000 INR.");
+        });
+
+        document.getElementById('tabPositions').addEventListener('click', (e) => {
+            e.target.className = "py-2 px-4 text-tvblue border-b-2 border-tvblue focus:outline-none";
+            document.getElementById('tabHistory').className = "py-2 px-4 text-gray-400 hover:text-white border-b-2 border-transparent focus:outline-none";
+            document.getElementById('positionsPanel').classList.remove('hidden');
+            document.getElementById('historyPanel').classList.add('hidden');
+        });
+
+        document.getElementById('tabHistory').addEventListener('click', (e) => {
+            e.target.className = "py-2 px-4 text-tvblue border-b-2 border-tvblue focus:outline-none";
+            document.getElementById('tabPositions').className = "py-2 px-4 text-gray-400 hover:text-white border-b-2 border-transparent focus:outline-none";
+            document.getElementById('historyPanel').classList.remove('hidden');
+            document.getElementById('positionsPanel').classList.add('hidden');
+            renderHistory();
+        });
+
+        function showToast(msg, type = "info") {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            document.getElementById('toastIcon').className = type === "error" ? "fa-solid fa-triangle-exclamation text-tvred" : "fa-solid fa-circle-check text-tvgreen";
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        // Window Resize Handling
+        window.addEventListener('resize', () => {
+            chart.applyOptions({ width: chartCanvas.clientWidth, height: chartCanvas.clientHeight });
+            rsiChart.applyOptions({ width: rsiCanvas.clientWidth, height: rsiCanvas.clientHeight });
+        });
+
+        // Initialize App
+        initChart();
+        updateCalculations();
+        updatePortfolioMetrics();
+        initAuth();
+    </script>
+</body>
+</html>
